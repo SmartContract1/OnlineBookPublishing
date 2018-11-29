@@ -103,7 +103,7 @@ function depositCollateral() payable costs  OnlyPublisher {
       require(pubstate==publisherState.WaitingForPublisherDeposit);
       pubstate=publisherState.CollateralDepositedByPublisher;
 	  state= contractState.PublisherDeposited;
- CollateralDeposited(msg.sender, "Collateral Deposited");
+ CollateralDeposited(msg.sender, "Collateral Deposited by publisher");
 }
        
 function provideHashANDToken(address customerAddress) OnlyPublisher ()
