@@ -5,10 +5,12 @@ contract BookContract{
     address publisher;
     address author; //book author
     string public bookDescription;//description of book
-    enum contractState { NotReady,Created, VerifiedandWaitingforCustomer, Aborted}
+    enum contractState { NotReady,Created, VerifiedandWaitingforCustomer,CustomerDeposited,PublisherDeposited, Aborted}
     contractState public state; 
     enum customerState {lookingforBook, MoneyDeposited,  ReceivedBookHashandToken, DoneVerification, SuccessfulDownload, UnsuccessfulDownload,Dispute, MoneyRefundedFully, HalfofMoneyRefunded  }
-  
+   enum publisherState{WaitingForPublisherDeposit, CollateralDepositedByPublisher}
+   publisherState public pubstate;
+   
     uint bookPrice;
     uint authorRoyalty;
     uint publisherRoyalty;
@@ -19,6 +21,7 @@ contract BookContract{
     string MD5BookHash;
     mapping (address => customerState) public customers;//every ethereum address points to the state of the customer
     mapping (address => bool) public customerDownloadResult;
+    
     
     //constructor
         function BookContract(){
@@ -59,6 +62,11 @@ contract BookContract{
         require(msg.value == 2 * bookPrice);//depositing twice the book price
         _;
     }
+	modifier pays()
+	{
+	 require(msg.value == 2 * bookPrice);//depositing twice the book price
+	 _;
+	 }
     
     //Tracking Events
     event ContractCreated(address owner);//publisher announces contract is created
@@ -74,6 +82,7 @@ contract BookContract{
     event CustomerRefundHalfTheAmount(address customer, string info);
     event DownloadVerificationDispute(address publisher, address customer, string info);
     event HashVerifiedByCustomer(address customer, string info, bool result);
+    event CollateralDeposited(address publisher, string info);
     
     function CreateAgreementContract() OnlyPublisher {
         require(state == contractState.NotReady);
@@ -81,21 +90,31 @@ contract BookContract{
             ContractCreated(msg.sender); //trigger event
     }
     
-    function DepositEtherToBuyBook() payable costs NotAuthor NotPublisher {
+function DepositEtherToBuyBook() payable costs NotAuthor NotPublisher {
         require(state == contractState.VerifiedandWaitingforCustomer && 
         customers[msg.sender] == customerState.lookingforBook );
         customers[msg.sender] = customerState.MoneyDeposited;
+        state == contractState.CustomerDeposited;
         DepositMoneyDone(msg.sender, "Money Deposited , Customer Waiting for Token And Hash"); //trigger event
-            
     }
-    function provideHashANDToken(address customerAddress) OnlyPublisher ()
+    
+function depositCollateral() payable costs  OnlyPublisher {
+      require(state == contractState.CustomerDeposited && customers[msg.sender] == customerState.MoneyDeposited);
+      require(pubstate==publisherState.WaitingForPublisherDeposit);
+      pubstate=publisherState.CollateralDepositedByPublisher;
+	  state= contractState.PublisherDeposited;
+ CollateralDeposited(msg.sender, "Collateral Deposited");
+}
+       
+function provideHashANDToken(address customerAddress) OnlyPublisher ()
     {
-        require(customers[customerAddress] == customerState.MoneyDeposited);
+        require(customers[customerAddress] == customerState.MoneyDeposited && pubstate==publisherState.CollateralDepositedByPublisher);
         //generate unique Token
         bytes32 token = keccak256(msg.sender, numberOfCustomers, numberOfSuccessfulSales, block.timestamp);
         customers[customerAddress] = customerState.ReceivedBookHashandToken;
         MD5HashANDTokenProvidedToCustomer(msg.sender,  "Hash" , MD5BookHash, "Token", token, customerAddress);
    }
+
     //customer verifies the hash and posts the result
     function verifyHash(address customerAddress, bool result)  NotAuthor NotPublisher
     {
@@ -155,7 +174,7 @@ contract BookContract{
             selfdestruct(msg.sender);
         }
     }
-    
+ 
     
  
     
